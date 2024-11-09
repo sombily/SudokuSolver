@@ -8,18 +8,19 @@ import java.util.Scanner;
 
 public class SudokuSolver {
     private SudokuGrid grid;
-    private List<DeductionRule> rules;
+    private List<RuleApplicationStrategy> strategy;
     private List<String> appliedRules;  // Liste pour suivre les règles appliquées
 
     public SudokuSolver(SudokuGrid grid) {
         this.grid = grid;
-        this.rules = new ArrayList<>();
+        this.strategy = new ArrayList<>();
         this.appliedRules = new ArrayList<>();
 
-        // Ajouter les règles à la liste
-        this.rules.add(DeductionRuleFactory.createRule("DR1"));
-        this.rules.add(DeductionRuleFactory.createRule("DR2"));
-        this.rules.add(DeductionRuleFactory.createRule("DR3"));
+        //AJouter les stratetgis dans l'ordre de difficulté
+        this.strategy.add( new EasyRuleStrategy());
+        this.strategy.add( new MediumRuleStrategy());
+        this.strategy.add( new DifficultRuleStrategy());
+
     }
 
     private List<Integer> getPossibleValues(int row, int col) {
@@ -37,34 +38,30 @@ public class SudokuSolver {
 
     public boolean solve() {
         boolean progress;
+        for(RuleApplicationStrategy strategy : strategy) {
+            do {
+                progress = strategy.applyRules(grid);
 
-        do {
-            progress = false;
-
-            for (DeductionRule rule : rules) {
-                if (rule.apply(grid)) {
-                    progress = true;
-                    String ruleName = rule.getClass().getSimpleName();
-                    if (!appliedRules.contains(ruleName)) {
-                        appliedRules.add(ruleName);
-                    }
+                // Enregistrer les règles appliquées pour l'évaluation de la difficulté
+                String strategyName = strategy.getClass().getSimpleName();
+                if (progress && !appliedRules.contains(strategyName)) {
+                    appliedRules.add(strategyName);
                 }
+
+            } while (progress && !grid.isFull());
+
+            //Si la grille est complete, on arrête
+            if( grid.isFull()){
+                return true;
             }
+        }
 
-            // Si aucune progression et la grille n'est pas complète, lance le backtracking
-            if (!progress && !grid.isFull()) {
-                System.out.println("Les règles de déduction ne suffisent pas, tentative de résolution par backtracking...");
-                if (!solveWithBacktracking()) {  // Si le backtracking échoue
-                    System.out.println("Backtracking échoué. Veuillez entrer une valeur manuellement.");
-                    userInputWithSuggestions();  // Appelle l'intervention utilisateur avec suggestions
-                }
-                return grid.isFull();  // Retourne l'état de complétion de la grille
-            }
+        //Si toutes les stratégies ont échoué et que la grille n'est pas pleine, lance le backtracking
+        System.out.println("Les règles de déduction ne suffisent pas, tentative par backtracking...");
+        return solveWithBacktracking();
 
-        } while (progress && !grid.isFull());
-
-        return grid.isFull();
     }
+
 
     private void userInputWithSuggestions() {
         Scanner scanner = new Scanner(System.in);

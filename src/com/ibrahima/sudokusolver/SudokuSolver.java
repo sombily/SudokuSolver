@@ -194,7 +194,12 @@ public class SudokuSolver {
     }
     public boolean solve() {
         System.out.println("\nDébut de la résolution...");
-
+        //Verifion si la grille est déjà complète
+        if(grid.isFull() && !hasInconsistency()){
+            System.out.println("La grille est déjà completètement résolue !");
+            System.out.println("Aucune règle n'a été nécessaire.");
+            return true;
+        }
         while (!grid.isFull()) {
             applyRulesInOrder();
 

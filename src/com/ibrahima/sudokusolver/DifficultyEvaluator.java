@@ -11,34 +11,37 @@ public class DifficultyEvaluator {
     }
 
     public Difficulty evaluate() {
-        // Test DR1 uniquement
+        // Test avec DR1 uniquement
         SudokuGrid testGrid = originalGrid.clone();
-        if (solveWithRule(testGrid, "DR1")) {
+        if (solveWithRules(testGrid, "DR1")) {
             return Difficulty.EASY;
         }
 
-        // Test avec DR2 (si DR1 n'a pas résolu)
+        // Test avec DR1 + DR2
         testGrid = originalGrid.clone();
-        if (solveWithRule(testGrid, "DR2")) {
+        if (solveWithRules(testGrid, "DR1", "DR2")) {
             return Difficulty.MEDIUM;
         }
 
-        /// Test avec DR3 (si DR2 n'a pas résolu)
+        // Test avec DR1 + DR2 + DR3
         testGrid = originalGrid.clone();
-        if (solveWithRule(testGrid, "DR3")) {
+        if (solveWithRules(testGrid, "DR1", "DR2", "DR3")) {
             return Difficulty.HARD;
         }
 
-        return Difficulty.VERY_HARD;  // Si même toutes les règles ensemble ne résolvent pas
-
+        return Difficulty.VERY_HARD;
     }
 
-
-    private boolean solveWithRule(SudokuGrid grid, String ruleType) {
-        DeductionRule rule = DeductionRuleFactory.createRule(ruleType);
+    private boolean solveWithRules(SudokuGrid grid, String... ruleTypes) {
         boolean progress;
         do {
-            progress = rule.apply(grid);
+            progress = false;
+            for (String ruleType : ruleTypes) {
+                DeductionRule rule = DeductionRuleFactory.createRule(ruleType);
+                if (rule.apply(grid)) {
+                    progress = true;
+                }
+            }
         } while (progress);
 
         return grid.isFull() && !hasInconsistency(grid);

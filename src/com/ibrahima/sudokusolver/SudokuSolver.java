@@ -41,30 +41,55 @@ public class SudokuSolver {
     private void applyRulesInOrder() {
         boolean hasProgress;
         int maxAttempts = 5;
-        boolean hasDisplayedProgress = false;
 
         do {
             hasProgress = false;
-            for (DeductionRule rule : rules) {
-                boolean ruleMadeProgress = rule.apply(grid);
-                if (ruleMadeProgress) {
-                    hasProgress = true;
-                    String ruleName = rule.getClass().getSimpleName();
-                    if (!appliedRules.contains(ruleName)) {
-                        appliedRules.add(ruleName);
-                    }
-                    if (!hasDisplayedProgress) {
-                        System.out.println("\nProgression avec " + ruleName + " :");
-                        grid.printGrid();
-                        hasDisplayedProgress = true;
-                    }
+
+            // Essayer DR1
+            DeductionRule dr1 = rules.get(0);
+            boolean dr1Progress = dr1.apply(grid);
+            if (dr1Progress) {
+                hasProgress = true;
+                if (!appliedRules.contains("RuleDR1")) {
+                    appliedRules.add("RuleDR1");
                 }
+                System.out.println("\nProgression avec RuleDR1 :");
+                grid.printGrid();
+                continue;
             }
+
+            // Si DR1 ne fait pas de progrès, essayer DR2
+            DeductionRule dr2 = rules.get(1);
+            boolean dr2Progress = dr2.apply(grid);
+            if (dr2Progress) {
+                hasProgress = true;
+                if (!appliedRules.contains("RuleDR2")) {
+                    appliedRules.add("RuleDR2");
+                }
+                System.out.println("\nProgression avec RuleDR2 :");
+                grid.printGrid();
+                continue;
+            }
+
+            // Si DR2 ne fait pas de progrès, essayer DR3
+            DeductionRule dr3 = rules.get(2);
+            boolean dr3Progress = dr3.apply(grid);
+            if (dr3Progress) {
+                hasProgress = true;
+                if (!appliedRules.contains("RuleDR3")) {
+                    appliedRules.add("RuleDR3");
+                }
+                System.out.println("\nProgression avec RuleDR3 :");
+                grid.printGrid();
+                continue;
+            }
+
             maxAttempts--;
         } while (hasProgress && maxAttempts > 0);
 
-        if (maxAttempts == 0 && !grid.isFull()) {
-            System.out.println("\nAucune progression supplémentaire possible. Intervention manuelle requise.");
+        if (!hasProgress && !grid.isFull()) {
+            System.out.println("\nAucune règle (DR1, DR2, DR3) n'a pu faire progresser la grille.");
+            System.out.println("Intervention manuelle requise.");
         }
     }
     private boolean hasGridChanged() {

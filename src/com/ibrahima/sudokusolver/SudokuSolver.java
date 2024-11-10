@@ -1,133 +1,108 @@
 package com.ibrahima.sudokusolver;
 
 import java.io.IOException;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
 
 public class SudokuSolver {
     private SudokuGrid grid;
-    private List<RuleApplicationStrategy> strategy;
-    private List<String> appliedRules;  // Liste pour suivre les règles appliquées
+    private List<DeductionRule> rules;
+    private List<String> appliedRules;
+    private DifficultyEvaluator difficultyEvaluator;
+    private boolean hasUsedManualInput;
+    private int[] initialState;
 
     public SudokuSolver(SudokuGrid grid) {
         this.grid = grid;
-        this.strategy = new ArrayList<>();
+        this.rules = new ArrayList<>();
         this.appliedRules = new ArrayList<>();
+        this.difficultyEvaluator = new DifficultyEvaluator(grid);
+        this.hasUsedManualInput = false;
+        this.initialState = grid.getGridCopy();
 
-        //AJouter les stratetgis dans l'ordre de difficulté
-        this.strategy.add( new EasyRuleStrategy());
-        this.strategy.add( new MediumRuleStrategy());
-        this.strategy.add( new DifficultRuleStrategy());
-
+        initializeRules();
     }
 
-    private List<Integer> getPossibleValues(int row, int col) {
-        List<Integer> possibleValues = new ArrayList<>();
+    private void initializeRules() {
+        DeductionRule rule1 = DeductionRuleFactory.createRule("DR1");
+        DeductionRule rule2 = DeductionRuleFactory.createRule("DR2");
+        DeductionRule rule3 = DeductionRuleFactory.createRule("DR3");
 
-        for (int num = 1; num <= 9; num++) {
-            if (isConsistent(row, col, num)) {
-                possibleValues.add(num);  // Ajoute le nombre s'il est valide
-            }
-        }
+        rules.add(rule1);
+        rules.add(rule2);
+        rules.add(rule3);
 
-        return possibleValues;
+        grid.addObserver(rule1);
+        grid.addObserver(rule2);
+        grid.addObserver(rule3);
     }
 
+    private void applyRulesInOrder() {
+        boolean hasProgress;
+        int maxAttempts = 5;
+        boolean hasDisplayedProgress = false;
 
-    public boolean solve() {
-        boolean progress;
-        for(RuleApplicationStrategy strategy : strategy) {
-            do {
-                progress = strategy.applyRules(grid);
-
-                // Enregistrer les règles appliquées pour l'évaluation de la difficulté
-                String strategyName = strategy.getClass().getSimpleName();
-                if (progress && !appliedRules.contains(strategyName)) {
-                    appliedRules.add(strategyName);
+        do {
+            hasProgress = false;
+            for (DeductionRule rule : rules) {
+                boolean ruleMadeProgress = rule.apply(grid);
+                if (ruleMadeProgress) {
+                    hasProgress = true;
+                    String ruleName = rule.getClass().getSimpleName();
+                    if (!appliedRules.contains(ruleName)) {
+                        appliedRules.add(ruleName);
+                    }
+                    if (!hasDisplayedProgress) {
+                        System.out.println("\nProgression avec " + ruleName + " :");
+                        grid.printGrid();
+                        hasDisplayedProgress = true;
+                    }
                 }
+            }
+            maxAttempts--;
+        } while (hasProgress && maxAttempts > 0);
 
-            } while (progress && !grid.isFull());
-
-            //Si la grille est complete, on arrête
-            if( grid.isFull()){
+        if (maxAttempts == 0 && !grid.isFull()) {
+            System.out.println("\nAucune progression supplémentaire possible. Intervention manuelle requise.");
+        }
+    }
+    private boolean hasGridChanged() {
+        int[] currentState = grid.getGridCopy();
+        for (int i = 0; i < currentState.length; i++) {
+            if (currentState[i] != initialState[i]) {
                 return true;
             }
         }
-
-        //Si toutes les stratégies ont échoué et que la grille n'est pas pleine, lance le backtracking
-        System.out.println("Les règles de déduction ne suffisent pas, tentative par backtracking...");
-        return solveWithBacktracking();
-
+        return false;
     }
 
-
-    private void userInputWithSuggestions() {
-        Scanner scanner = new Scanner(System.in);
-
-        System.out.println("Veuillez entrer les coordonnées de la cellule où vous souhaitez entrer une valeur.");
-        System.out.print("Ligne (0-8) : ");
-        int row = scanner.nextInt();
-        System.out.print("Colonne (0-8) : ");
-        int col = scanner.nextInt();
-
-        // Affiche les valeurs possibles pour aider l'utilisateur
-        List<Integer> possibleValues = getPossibleValues(row, col);
-        if (possibleValues.isEmpty()) {
-            System.out.println("Aucune valeur valide pour cette cellule. Veuillez vérifier les coordonnées.");
-            return;
+    private boolean hasInconsistency() {
+        for (int row = 0; row < 9; row++) {
+            for (int col = 0; col < 9; col++) {
+                int value = grid.getCell(row, col);
+                if (value != 0 && !isConsistent(row, col, value)) {
+                    System.out.println("Incohérence détectée pour la valeur " + value +
+                            " à la position (" + (row+1) + ", " + (col+1) + ")");
+                    return true;
+                }
+            }
         }
-
-        System.out.println("Valeurs possibles pour la cellule (" + row + ", " + col + ") : " + possibleValues);
-        System.out.print("Veuillez choisir une valeur parmi les suggestions : ");
-        int value = scanner.nextInt();
-
-        if (possibleValues.contains(value)) {
-            grid.setCell(row, col, value);
-            System.out.println("Valeur ajoutée avec succès. Continuons la résolution.");
-        } else {
-            System.out.println("Valeur non valide pour cette cellule. Veuillez réessayer.");
-        }
+        return false;
     }
 
-    //Methode pour evaluer la difficulté en fonction des régles
-    public String evaluateDifficulty() {
-        if (appliedRules.contains("RuleDR1") && !appliedRules.contains("RuleDR2")) {
-            return "Facile";
-        } else if (appliedRules.contains("RuleDR2") && !appliedRules.contains("RuleDR3")) {
-            return "Moyenne";
-        } else if (appliedRules.contains("RuleDR3")) {
-            return "Difficile";
-        } else {
-            return "Très Difficile";
-        }
-    }
-
-    private boolean userInputAndValidate() {
-        Scanner scanner = new Scanner(System.in);
-        System.out.println("Ligne (0-8) : ");
-        int row = scanner.nextInt();
-        System.out.println("Colonne (0-8) : ");
-        int col = scanner.nextInt();
-        System.out.println("Valeur (1-9) : ");
-        int value = scanner.nextInt();
-
-        if (isConsistent(row, col, value)) {
-            grid.setCell(row, col, value);
-            return true;
-        } else {
-            System.out.println("Valeur incohérente à cette position.");
-            return false;
-        }
-    }
-
-    // Vérifie si l'ajout d'une valeur à une position spécifique respecte les règles du Sudoku
     private boolean isConsistent(int row, int col, int value) {
         // Vérifie la ligne
         for (int i = 0; i < 9; i++) {
-            if (grid.getCell(row, i) == value || grid.getCell(i, col) == value) {
-                return false;  // Conflit détecté
+            if (i != col && grid.getCell(row, i) == value) {
+                return false;
+            }
+        }
+
+        // Vérifie la colonne
+        for (int i = 0; i < 9; i++) {
+            if (i != row && grid.getCell(i, col) == value) {
+                return false;
             }
         }
 
@@ -136,41 +111,92 @@ public class SudokuSolver {
         int startCol = (col / 3) * 3;
         for (int i = 0; i < 3; i++) {
             for (int j = 0; j < 3; j++) {
-                if (grid.getCell(startRow + i, startCol + j) == value) {
-                    return false;  // Conflit détecté dans le bloc 3x3
+                if ((startRow + i != row || startCol + j != col) &&
+                        grid.getCell(startRow + i, startCol + j) == value) {
+                    return false;
                 }
             }
         }
-
-        return true;  // Aucun conflit détecté
+        return true;
     }
 
+    private boolean handleManualInput() {
+        Scanner scanner = new Scanner(System.in);
+        try {
+            System.out.println("\nEntrez une valeur (format: ligne colonne valeur, ex: 1 2 5):");
+            int row = scanner.nextInt() - 1;
+            int col = scanner.nextInt() - 1;
+            int value = scanner.nextInt();
 
+            if (!isValidInput(row, col, value)) {
+                System.out.println("Valeurs invalides. Utilisez des nombres entre 1-9.");
+                return false;
+            }
 
-    public void printAppliedRules() {
-        System.out.println("Règles appliquées pour résoudre la grille : " + String.join(", ", appliedRules));
+            grid.setCell(row, col, value);
+
+            if (hasInconsistency()) {
+                System.out.println("Cette valeur crée une incohérence. Veuillez recommencer.");
+                return false;
+            }
+
+            // Afficher la grille mise à jour
+            System.out.println("\nGrille après votre entrée :");
+            grid.printGrid();
+
+            return true;
+        } catch (Exception e) {
+            System.out.println("Format invalide. Utilisez : ligne colonne valeur");
+            return false;
+        }
     }
-    public boolean solveWithBacktracking() {
-        for (int row = 0; row < 9; row++) {
-            for (int col = 0; col < 9; col++) {
-                if (grid.getCell(row, col) == 0) {  // Si la cellule est vide
-                    for (int num = 1; num <= 9; num++) {
-                        if (isConsistent(row, col, num)) {  // Vérifie si le nombre est compatible
-                            grid.setCell(row, col, num);  // Place le nombre
-                            if (solveWithBacktracking()) {  // Appel récursif pour continuer la résolution
-                                return true;  // La grille est complète
-                            }
-                            grid.setCell(row, col, 0);  // Annule si cela ne mène pas à une solution
-                        }
-                    }
-                    return false;  // Aucun nombre ne convient, revient en arrière
+
+    private boolean isValidInput(int row, int col, int value) {
+        // Vérifie que les indices sont dans les limites
+        if (row < 0 || row > 8 || col < 0 || col > 8) {
+            return false;
+        }
+        // Vérifie que la valeur est entre 1 et 9
+        if (value < 1 || value > 9) {
+            return false;
+        }
+        // Vérifie que la case est vide
+        if (grid.getCell(row, col) != 0) {
+            System.out.println("Cette case est déjà remplie !");
+            return false;
+        }
+        return true;
+    }
+    public boolean solve() {
+        System.out.println("\nDébut de la résolution...");
+
+        while (!grid.isFull()) {
+            applyRulesInOrder();
+
+            if (!grid.isFull()) {
+                if (hasInconsistency()) {
+                    System.out.println("\nIncohérence détectée. Veuillez recommencer depuis le début.");
+                    return false;
                 }
+
+                if (!handleManualInput()) {
+                    return false;
+                }
+                hasUsedManualInput = true;
             }
         }
-        return true;  // Grille complète
+
+        if (hasInconsistency()) {
+            System.out.println("\nLa grille finale contient des incohérences. Veuillez recommencer.");
+            return false;
+        }
+
+        System.out.println("\nRésolution terminée !");
+        System.out.println("Difficulté de la grille : " + difficultyEvaluator.evaluate());
+        System.out.println("Règles appliquées : " + String.join(", ", appliedRules));
+
+        return true;
     }
-
-
     public static void main(String[] args) {
         if (args.length == 0) {
             System.out.println("Veuillez spécifier le fichier de grille en argument.");
@@ -178,27 +204,15 @@ public class SudokuSolver {
         }
 
         String filename = args[0];
-
         try {
             SudokuGrid grid = SudokuGrid.getInstance();
             grid.loadGrid(filename);
-            System.out.println("Grille initiale :");
-            grid.printGrid();
 
             SudokuSolver solver = new SudokuSolver(grid);
 
-            if (solver.solve()) {
-                System.out.println("Grille résolue :");
-                grid.printGrid();
-                solver.printAppliedRules();
-
-                //Affiche la difficulté
-                String difficulty = solver.evaluateDifficulty();
-                System.out.println("Difficulté de la grille: "+difficulty);
-            } else {
-                System.out.println("La résolution n'a pas pu être complétée en raison d'une incohérence.");
+            if (!solver.solve()) {
+                System.out.println("La résolution a échoué. Veuillez recommencer avec une nouvelle grille.");
             }
-
         } catch (IOException e) {
             System.out.println("Erreur lors de la lecture du fichier : " + e.getMessage());
         }

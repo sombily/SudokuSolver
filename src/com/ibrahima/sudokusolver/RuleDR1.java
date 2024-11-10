@@ -1,18 +1,14 @@
 package com.ibrahima.sudokusolver;
 
 public class RuleDR1 extends DeductionRule {
+
     @Override
     public boolean apply(SudokuGrid grid) {
-        // Implémentation de la logique de la règle DR1
-        //ici, nous vérifions si la règle trouve une case vide unique
-        
-
         boolean progress = false;
 
-        // Parcourt chaque cellule de la grille
         for (int row = 0; row < 9; row++) {
             for (int col = 0; col < 9; col++) {
-                if (grid.getCell(row, col) == 0) {  // Si la cellule est vide
+                if (grid.getCell(row, col) == 0) {
                     int possibleValue = findUniquePossibleValue(grid, row, col);
                     if (possibleValue != -1) {
                         grid.setCell(row, col, possibleValue);
@@ -21,8 +17,7 @@ public class RuleDR1 extends DeductionRule {
                 }
             }
         }
-
-        return progress;  // Retourne true si une case a ete remplie
+        return progress;
     }
 
     /**
